@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Víctor Meyer v1.3</title>
+    <style>
+        /* ... (Keep ALL existing CSS styles from the previous version v1.2) ... */
+        body { font-family: sans-serif; line-height: 1.6; margin: 0; padding: 10px; background-color: #f4f4f4; color: #333; font-size: 14px; }
+        .simulator-container { display: flex; flex-wrap: wrap; gap: 15px; background-color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 900px; margin: auto; }
+        .control-panel, .visualization-panel, .results-panel { padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+        .control-panel { flex: 1; min-width: 220px; display: flex; flex-direction: column;}
+        .visualization-panel { flex: 2; min-width: 300px; height: 400px; position: relative; background-color: #e0f2fe; overflow: hidden;}
+        .results-panel { flex: 1; min-width: 200px; }
+        h2, h3 { margin-top: 0; color: #0056b3; }
+        button { display: block; width: 100%; padding: 8px 12px; margin: 8px 0; border: none; border-radius: 4px; background-color: #007bff; color: white; cursor: pointer; font-size: 1em; transition: background-color 0.2s; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        label { display: block; margin: 5px 0 2px; font-weight: bold; }
+        input[type="number"], select { width: calc(100% - 12px); padding: 5px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.95em; }
+        .feedback { margin-top: 15px; padding: 10px; border-radius: 4px; min-height: 50px; border: 1px solid; flex-grow: 1;}
+        .feedback-info { border-color: #b8daff; background-color: #cfe2ff; color: #055160; }
+        .feedback-success { border-color: #badbcc; background-color: #d1e7dd; color: #0f5132; }
+        .feedback-warning { border-color: #ffe58f; background-color: #fff3cd; color: #664d03; }
+        .feedback-error { border-color: #f5c2c7; background-color: #f8d7da; color: #842029; }
+        .hidden { display: none; }
+        .input-error { border-color: red; }
+        /* Visualization Styles */
+        .apparatus-component { position: absolute; border: 1px solid #666; background-color: #d0d0d0; box-sizing: border-box; }
+        #heating-jacket { bottom: 50px; left: 50%; transform: translateX(-50%); width: 80px; height: 250px; background-color: #f8d7da; border-color: #dc3545; border-radius: 5px 5px 0 0; z-index: 1; }
+        #heating-jacket.heating { box-shadow: 0 0 10px 3px orange; animation: pulse 1.5s infinite ease-in-out; }
+        #vaporization-tube { bottom: 52px; left: 50%; transform: translateX(-50%); width: 30px; height: 246px; background-color: transparent; border: 1px solid #999; border-radius: 3px 3px 0 0; z-index: 2; overflow: hidden; position: relative; }
+        #sample-color-fill { position: absolute; inset: 0; background-color: #f8d7da; z-index: 3; opacity: 0; transition: opacity 0.5s; }
+        #purge-overlay { position: absolute; inset: 0; background-color: white; opacity: 0; z-index: 7; transition: opacity 0.2s; }
+        #initial-residue { position: absolute; inset: 0; background-color: rgba(200, 200, 200, 0.2); z-index: 3; transition: background-color 1s, opacity 1s; }
+        #vapor-effect { position: absolute; bottom: 0; left:0; right: 0; height: 0%; background-color: rgba(255, 220, 220, 0.7); z-index: 4; transition: height 2s ease-out, opacity 2s; opacity: 0; border-radius: 0 0 3px 3px; }
+        #ampoule { position: absolute; bottom: 10px; left: 50%; transform: translate(-50%, 150px); width: 10px; height: 15px; background-color: #aaa; border-radius: 50%; z-index: 5; opacity: 0; transition: transform 1s ease-in, opacity 0.5s; }
+        #ampoule.falling { transform: translate(-50%, 0); opacity: 1; }
+        #burner { bottom: 10px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; }
+        #burner-body { width: 100%; height: 20px; background-color: #6c757d; border-radius: 3px 3px 0 0;}
+        #flame { width: 20px; height: 0px; margin: 0 auto; background: orange; border-radius: 50% 50% 10% 10% / 80% 80% 20% 20%; box-shadow: 0 0 5px orange; transition: height 0.3s, opacity 0.3s; opacity: 0; animation: flicker 0.3s infinite alternate; }
+        #flame.on { height: 20px; opacity: 1; }
+        #delivery-tube { position: absolute; top: 80px; left: calc(50% + 40px); width: 100px; height: 150px; border-left: 2px solid #666; border-bottom: 2px solid #666; border-radius: 0 0 0 10px; z-index: 1; }
+        #gas-collector { position: absolute; bottom: 30px; left: calc(50% + 100px); width: 50px; height: 200px; border: 1px solid #007bff; background-color: transparent; border-radius: 5px 5px 0 0; overflow: hidden; }
+        #water-in-collector { position: absolute; bottom: 0; left: 0; right: 0; height: 100%; background-color: #cce5ff; z-index: 0; transition: background-color 2s ease-out; }
+        #gas-space { position: absolute; top: 0; left: 0; right: 0; height: 0%; background-color: #e9ecef; transition: height 2s ease-out; z-index: 1; }
+        #water-column-indicator { position: absolute; bottom: 0; right: -15px; width: 20px; text-align: center; font-size: 10px; color: #dc3545; }
+        #water-column-line { width: 1px; background-color: #dc3545; margin: 0 auto 2px; height: 0; transition: height 2s ease-out; }
+        #vaporization-tube.purging::after { content: ''; position: absolute; inset: 0; background-color: white; opacity: 0; animation: purgeAnimation var(--purge-duration, 3s) linear forwards; z-index: 6; }
+        @keyframes purgeAnimation { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 10px 3px orange; } 50% { box-shadow: 0 0 18px 6px darkorange; } }
+        @keyframes flicker { 0%, 100% { transform: scaleY(1); opacity: 1; } 50% { transform: scaleY(1.1) scaleX(1.05); opacity: 0.8; } }
+        /* Quiz Styles */
+        .quiz-question { margin-bottom: 15px; }
+        .quiz-options label { font-weight: normal; display: block; margin-left: 5px; cursor: pointer;}
+        .quiz-options input { width: auto; margin-right: 5px; cursor: pointer; }
+        /* Review Input Styles */
+        #review-inputs { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc; }
+        #review-inputs label, #review-inputs input { display: inline-block; margin-bottom: 5px; }
+        #review-inputs input[type="number"]{ width: 80px; }
+        #review-inputs input[type="checkbox"]{ width: auto; margin-left: 10px; vertical-align: middle;}
+        #review-inputs label[for="ignore-h"], #review-inputs label[for="ignore-pv"] { margin-left: 3px; font-weight: normal; }
+        #review-inputs .input-row { display: block; margin-bottom: 8px; } 
+    </style>
+</head>
+<body>
+<div class="simulator-container">
+    
+    <div class="control-panel">
+        <h2>Controles</h2>
+        <label for="substance">Sustancia:</label> <select id="substance"> <option value="chloroform">Cloroformo (CHCl₃)</option> <option value="ethanol">Etanol (C₂H₅OH)</option> <option value="diethyl_ether">Éter Dietílico ((C₂H₅)₂O)</option> </select>
+        <label for="ambientTemp">Temp. Ambiente (°C):</label> <input type="number" id="ambientTemp" value="25" step="1">
+        <label for="atmPressure">Presión Atm. (mmHg):</label> <input type="number" id="atmPressure" value="760" step="1">
+        <div id="weighing-station" class="hidden"> <label for="sampleMass">Masa Muestra (g):</label> <input type="number" id="sampleMass" step="0.001" placeholder="e.g., 0.188"> <button id="btn-confirm-weighing">Confirmar Masa</button> <p id="weighing-error-msg" style="color: red; font-size: 0.9em; height: 1em;"></p> </div>
+        <button id="btn-start-heat">1. Encender Mechero</button> <button id="btn-purge" disabled>2. Purgar Sistema</button> <button id="btn-weigh" disabled>3. Pesar Muestra</button> <button id="btn-insert" disabled>4. Insertar Ampolla</button> <button id="btn-review" disabled>5. Revisar Medidas</button> <button id="btn-calculate" disabled>6. Calcular Resultados</button> <button id="btn-reset">Reiniciar</button>
+        <div id="feedback" class="feedback feedback-info">Selecciona sustancia e inicia la simulación.</div>
+        <div id="teacher-controls" style="margin-top:15px; padding-top:10px; border-top: 1px dashed #ccc;" class="hidden"> <h3>Modo Docente</h3> <input type="checkbox" id="forcePurgeError" style="width:auto;"> <label for="forcePurgeError" style="display:inline; font-weight:normal; cursor:pointer;">Forzar Error Purga</label><br> <input type="checkbox" id="forceLossError" style="width:auto;"> <label for="forceLossError" style="display:inline; font-weight:normal; cursor:pointer;">Forzar Pérdida Muestra</label><br> <label for="errorMargin">Margen Error Sim (%)</label> <input type="number" id="errorMargin" value="5" step="1" min="0" max="30"> </div> <button id="btn-toggle-teacher">Modo Docente</button>
+    </div>
+    
+    <div class="visualization-panel">
+    
+        <div id="heating-jacket" class="apparatus-component"> <div id="vaporization-tube" class="apparatus-component"> <div id="sample-color-fill"></div> <div id="purge-overlay"></div> <div id="initial-residue"></div> <div id="vapor-effect"></div> <div id="ampoule"></div> </div> </div>
+        <div id="delivery-tube"></div>
+        <div id="gas-collector" class="apparatus-component"> <div id="water-in-collector"></div> <div id="gas-space"></div> <div id="water-column-indicator"> <div id="water-column-line"></div> h = <span id="h-value">0</span> cm </div> </div>
+        <div id="burner" class="apparatus-component"> <div id="burner-body"></div> <div id="flame"></div> </div>
+    </div>
+    
+    <div class="results-panel hidden" id="results-panel">
+        <h2 id="results-title">Resultados</h2>
+        <div id="results-display"> <p>Masa Pesada (m): <strong id="res-m">---</strong> g</p> <p>Volumen Recogido (V): <strong id="res-v">---</strong> mL</p> <p>Temp. Ambiente (T): <strong id="res-t-display">---</strong> °C</p> <p>Presión Atm.: <strong id="res-patm-display">---</strong> mmHg</p> <p>Altura Columna Agua (h): <strong id="res-h">---</strong> cm</p> <p>Pv Agua (calculada): <strong id="pv-calculated">---</strong> atm</p> {/* Show calculated Pv */} </div>
+        <div id="review-inputs" class="hidden">
+            <hr>
+            <div class="input-row">
+                <label for="mass-for-calc">Masa p/ cálculo:</label>
+                <input type="number" id="mass-for-calc" step="0.001"> g
+                <p id="mass-override-error" style="color:red; font-size:0.85em; height:1em; margin-left: 5px; display: inline;"></p>
+            </div>
+             <div class="input-row">
+                 <label for="pv-for-calc">Pv H₂O p/ cálculo:</label>
+                 <input type="number" id="pv-for-calc" step="0.0001"> atm
+                 <p id="pv-override-error" style="color:red; font-size:0.85em; height:1em; margin-left: 5px; display: inline;"></p>
+             </div>
+            <div class="input-row">
+                <input type="checkbox" id="ignore-h">
+                <label for="ignore-h">Ignorar columna (h)</label>
+                <input type="checkbox" id="ignore-pv"> 
+                <label for="ignore-pv">Ignorar Pv Agua</label>
+            </div>
+            <hr>
+        </div>
+        <div id="final-calc-results" class="hidden"> <p id="mass-used-line" class="hidden">Masa Usada (cálculo): <strong id="mass-used-value">---</strong> g</p> <p>Temp. Gas (T): <strong id="res-t">---</strong> K</p> <p>Presión Atm.: <strong id="res-patm">---</strong> atm</p> <p>Presión Vapor H₂O (Pv): <strong id="res-pv">---</strong> atm</p> <p>Presión Columna (Ph): <strong id="res-ph">---</strong> atm</p> <p>Presión Gas Seco (P): <strong id="res-p">---</strong> atm</p> <hr> <p><strong>Peso Mol. Exp (M): <strong id="res-mw" style="color: blue;">---</strong> g/mol</strong></p> <hr> <p>Fórmula Mínima: <strong id="res-ef">---</strong></p> <p>Fórmula Molecular: <strong id="res-mf">---</strong></p> <p>Peso Mol. Teórico: <strong id="res-mw-teor">---</strong> g/mol</p> <p>Error Relativo: <strong id="res-err-rel">---</strong> %</p> </div>
+        <div id="quiz-module" style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;" class="hidden"> <h3>Quiz Rápido</h3> <div id="quiz-question-container"></div> <button id="quiz-submit" class="hidden">Verificar Respuesta</button> <div id="quiz-feedback" style="margin-top: 10px; font-weight: bold;"></div> </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("Victor Meyer Sim: DOM Loaded");
+
+        // --- Constants and Global Scope Variables ---
+        const R = 0.08206; const substances = { chloroform: { name: 'Cloroformo', formula: 'CHCl3', mw: 119.38, bp: 61, empirical: 'CHCl3' }, ethanol: { name: 'Etanol', formula: 'C2H5OH', mw: 46.07, bp: 78, empirical: 'C2H6O' }, diethyl_ether: { name: 'Éter Dietílico', formula: '(C2H5)2O', mw: 74.12, bp: 35, empirical: 'C4H10O' } }; const antoineWater = { A: 8.07131, B: 1730.63, C: 233.426 }; const purgeDurationMs = 3000; const quizQuestions = [ { question: "Principal suposición del método V. Meyer?", options: ["Vapor ideal tubo caliente.", "Vol Aire T.amb = Vol Vapor ideal T.amb.", "P.atm constante.", "Agua no se evapora."], correctAnswer: 1 }, { question: "Si detienes purga antes, ¿cómo afecta M?", options: ["Más alto (menos V aire).", "Más bajo (más V aparente).", "Sin efecto.", "Depende sustancia."], correctAnswer: 0 }, { question: "Por qué T.eb calefactor > T.eb muestra?", options: ["Evitar evap. calefactor.", "Asegurar vaporización muestra.", "Aumentar presión.", "Mejorar condensación."], correctAnswer: 1 } ]; const collectorHeightCm = 20.0; const maxCollectorVolumeMl = 50.0;
+
+        let state = {}; // Holds simulation state
+        let ui = {}; // Holds references to UI elements
+
+        // --- Utility Functions ---
+        const getEl = (id) => document.getElementById(id);
+        const updateFeedback = (message, type = 'info') => { if(ui.feedback) { ui.feedback.innerHTML = message; ui.feedback.className = `feedback feedback-${type}`; } };
+        const getRandomValue = (base, errorPercent) => { const margin = base * (errorPercent / 100); const error = (Math.random() * 2 - 1) * margin; return Math.max(0, base + error); };
+        const getWaterVaporPressure = (tempC) => { if (tempC <= 0) return 4.58; if (tempC >= 100) return 760; return Math.pow(10, antoineWater.A - antoineWater.B / (antoineWater.C + tempC)); };
+        const dp = (val, places) => (val === null || val === undefined || isNaN(val)) ? '---' : val.toFixed(places);
+
+        // --- UI Update Functions ---
+        function updateButtonStates() {
+            if (!ui || !state || !state.flags) return; const stage = state.currentStage; const flags = state.flags;
+            try {
+                ui.btnStartHeat.disabled = stage !== 0; const canStartPurge = stage === 1 && flags.isHeated && !flags.isWeighed && !flags.isPurging; const canStopPurge = flags.isPurging; ui.btnPurge.disabled = !(canStartPurge || canStopPurge); ui.btnPurge.textContent = flags.isPurging ? "Detener Purga" : "2. Purgar Sistema"; ui.btnWeigh.disabled = !(stage === 1 && flags.isHeated && !flags.isWeighed && !flags.isPurging); ui.btnInsert.disabled = !(stage === 3 && flags.isWeighed && !flags.isInserted); ui.btnReview.disabled = !(stage === 4 && flags.isInserted && !flags.isReviewed); ui.btnCalculate.disabled = !(stage === 5 && flags.isReviewed && !flags.isCalculated); const inputsDisabled = stage > 0; ui.substanceSelect.disabled = inputsDisabled; ui.ambientTempInput.disabled = inputsDisabled; ui.atmPressureInput.disabled = inputsDisabled;
+                // Enable/disable review inputs
+                ui.massForCalcInput.disabled = stage !== 5; ui.ignoreHCheckbox.disabled = stage !== 5;
+                ui.pvForCalcInput.disabled = (stage !== 5 || ui.ignorePvCheckbox.checked); // Disable if ignoring Pv
+                ui.ignorePvCheckbox.disabled = stage !== 5;
+            } catch (e) { console.error("Error updating button states:", e); }
+        }
+
+        function displayReviewData() {
+            if(!ui || !state) return;
+            // Calculate Pv based on current temp for display/default override
+            const ambT_C = state.ambientTempC;
+            const Pv_mmHg_calc = getWaterVaporPressure(ambT_C);
+            const Pv_atm_calc = Pv_mmHg_calc / 760.0;
+            state.calculated.Pv_atm_calc = Pv_atm_calc; // Store calculated Pv for reference
+
+            ui.resultsTitle.textContent = "Revisión de Medidas"; ui.resM.textContent = dp(state.sampleMassG, 3); ui.resV.textContent = dp(state.collectedVolumeMl, 1); ui.resTDisplay.textContent = dp(state.ambientTempC, 1) + ' °C'; ui.resPatmDisplay.textContent = dp(state.atmPressureMmHg, 1) + ' mmHg'; ui.resH.textContent = dp(state.waterColumnCm, 1);
+            ui.pvCalculatedDisplay.textContent = dp(Pv_atm_calc, 4) + ' atm'; // Show the calculated Pv
+
+            ui.massForCalcInput.value = dp(state.massForCalc, 3); ui.massOverrideError.textContent = '';
+            ui.pvForCalcInput.value = dp(Pv_atm_calc, 4); // Pre-fill Pv override with calculated value
+            ui.pvOverrideError.textContent = '';
+            ui.ignoreHCheckbox.checked = state.flags.ignoreWaterColumn;
+            ui.ignorePvCheckbox.checked = state.flags.ignorePvInCalc; // Set checkbox based on state
+
+            ui.resultsDisplay.classList.remove('hidden'); ui.reviewInputs.classList.remove('hidden');
+            ui.finalCalcResults.classList.add('hidden'); ui.resultsPanel.classList.remove('hidden');
+            ui.quizModule.classList.add('hidden');
+            updateButtonStates(); // Ensure Pv input disable state is correct
+        }
+
+        function displayFinalResults() {
+             if(!ui || !state) return;
+             // Populate basic display
+             ui.resM.textContent = dp(state.sampleMassG, 3); ui.resV.textContent = dp(state.collectedVolumeMl, 1); ui.resTDisplay.textContent = dp(state.ambientTempC, 1) + ' °C'; ui.resPatmDisplay.textContent = dp(state.atmPressureMmHg, 1) + ' mmHg'; ui.resH.textContent = dp(state.waterColumnCm, 1); ui.pvCalculatedDisplay.textContent = dp(state.calculated.Pv_atm_calc, 4) + ' atm';
+             // Populate FINAL calculation results
+             ui.resT.textContent = dp(state.calculated.T_K, 2); ui.resPatm.textContent = dp(state.calculated.Patm_atm, 3);
+             ui.resPv.textContent = state.flags.ignorePvInCalc ? '0.0000 (Ignorado)' : dp(state.calculated.Pv_atm, 4); // Show modified/ignored Pv
+             ui.resPh.textContent = state.flags.ignoreWaterColumn ? '0.0000 (Ignorado)' : dp(state.calculated.Ph_atm, 4);
+             ui.resP.textContent = dp(state.calculated.P_corrected_atm, 3);
+             if(ui.massUsedValue && ui.massUsedLine) { ui.massUsedValue.innerHTML = dp(state.massForCalc, 3); if (Math.abs(state.massForCalc - state.sampleMassG) > 1e-4) { ui.massUsedValue.innerHTML += ` <strong style="color:darkorange;">(Modificado)</strong>`; } ui.massUsedLine.classList.remove('hidden'); }
+             ui.resMw.textContent = dp(state.calculated.M_exp, 2); const substance = substances[state.substanceKey]; ui.resEf.textContent = substance.empirical || 'N/A'; ui.resMf.textContent = state.calculated.molecularFormula || 'N/A'; ui.resMwTeor.textContent = dp(substance.mw, 2); ui.resErrRel.textContent = dp(state.calculated.relativeErrorPercent, 1);
+             // Update UI visibility
+             ui.resultsTitle.textContent = "Resultados Finales"; ui.resultsDisplay.classList.remove('hidden'); ui.reviewInputs.classList.add('hidden'); ui.finalCalcResults.classList.remove('hidden'); ui.resultsPanel.classList.remove('hidden'); ui.quizModule.classList.remove('hidden');
+             startQuiz();
+        }
+
+        // --- Reset Function ---
+         function resetSimulation() {
+             console.log("Resetting simulation..."); if(!ui) return; try { clearTimeout(state.timers?.heating); clearTimeout(state.timers?.purging); clearTimeout(state.timers?.vaporization); ui.vaporizationTube?.classList.remove('purging'); ui.purgeOverlay.style.opacity = '0'; const initialState = { currentStage: 0, substanceKey: ui.substanceSelect?.value || 'chloroform', ambientTempC: parseFloat(ui.ambientTempInput?.value) || 25, atmPressureMmHg: parseFloat(ui.atmPressureInput?.value) || 760, sampleMassG: null, massForCalc: null, collectedVolumeMl: null, waterColumnCm: null, calculated: { Pv_atm_calc: null }, flags: { isHeated: false, isPurged: false, isWeighed: false, isInserted: false, isReviewed: false, isCalculated: false, purgeSkippedOrFailed: false, lossErrorOccurred: false, teacherMode: state.flags ? state.flags.teacherMode : false, isPurging: false, purgeCompleteRatio: 0, ignoreWaterColumn: false, ignorePvInCalc: false }, timers: { purgeStartTime: 0 }, currentQuizQuestionIndex: -1, }; Object.assign(state, initialState); updateFeedback('Simulación reiniciada.', 'info'); ui.resultsPanel?.classList.add('hidden'); ui.reviewInputs?.classList.add('hidden'); ui.finalCalcResults?.classList.add('hidden'); ui.weighingStation?.classList.add('hidden'); ui.quizModule?.classList.add('hidden'); if(ui.sampleMassInput) { ui.sampleMassInput.value = ''; ui.sampleMassInput.classList.remove('input-error'); } if(ui.weighingErrorMsg) ui.weighingErrorMsg.textContent = ''; if(ui.massForCalcInput) ui.massForCalcInput.value = ''; if(ui.massOverrideError) ui.massOverrideError.textContent = ''; if(ui.pvForCalcInput) ui.pvForCalcInput.value = ''; if(ui.pvOverrideError) ui.pvOverrideError.textContent = ''; if(ui.ignoreHCheckbox) ui.ignoreHCheckbox.checked = false; if(ui.ignorePvCheckbox) ui.ignorePvCheckbox.checked = false; if(ui.quizQuestionContainer) ui.quizQuestionContainer.innerHTML = ''; if(ui.quizSubmitButton) ui.quizSubmitButton.classList.add('hidden'); if(ui.quizFeedback) ui.quizFeedback.textContent = ''; ui.flame?.classList.remove('on'); ui.heatingJacket?.classList.remove('heating'); if(ui.initialResidue) ui.initialResidue.style.opacity = '1'; if(ui.sampleColorFill) ui.sampleColorFill.style.opacity = '0'; if(ui.purgeOverlay) ui.purgeOverlay.style.opacity = '0'; if(ui.vaporEffect) { ui.vaporEffect.style.height = '0%'; ui.vaporEffect.style.opacity = '0'; } if(ui.ampoule) { ui.ampoule.classList.remove('falling'); ui.ampoule.style.transform = 'translate(-50%, 150px)'; } if(ui.gasSpace) ui.gasSpace.style.height = '0%'; if(ui.waterColumnLine) ui.waterColumnLine.style.height = '0px'; if(ui.hValueSpan) ui.hValueSpan.textContent = '0'; if(ui.waterInCollector) ui.waterInCollector.style.backgroundColor = '#cce5ff'; const fieldsToClear = ['res-m', 'res-v', 'res-t-display', 'res-patm-display', 'res-h', 'pv-calculated', 'mass-used-value', 'res-t', 'res-patm', 'res-pv', 'res-ph', 'res-p', 'res-mw', 'res-ef', 'res-mf', 'res-mw-teor', 'res-err-rel']; fieldsToClear.forEach(id => { const el = getEl(id); if (el) el.textContent = '---'; }); const massUsedLine = getEl('mass-used-line'); if (massUsedLine) massUsedLine.classList.add('hidden'); updateButtonStates(); } catch(e) { console.error("Error reset:", e); }
+         }
+
+        // --- Quiz Functions ---
+        function startQuiz() { state.currentQuizQuestionIndex = 0; displayQuizQuestion(); }
+        function displayQuizQuestion() { ui.quizFeedback.textContent = ''; if (state.currentQuizQuestionIndex >= quizQuestions.length) { ui.quizQuestionContainer.innerHTML = "<p>Quiz completado.</p>"; ui.quizSubmitButton.classList.add('hidden'); return; } const q = quizQuestions[state.currentQuizQuestionIndex]; let optionsHtml = q.options.map((option, index) => `<label><input type="radio" name="quizOption" value="${index}"> ${option}</label>`).join(''); ui.quizQuestionContainer.innerHTML = `<div class="quiz-question"><p><strong>${state.currentQuizQuestionIndex + 1}. ${q.question}</strong></p><div class="quiz-options">${optionsHtml}</div></div>`; ui.quizSubmitButton.classList.remove('hidden'); ui.quizSubmitButton.disabled = false; }
+        function checkQuizAnswer() { const sel = document.querySelector('input[name="quizOption"]:checked'); if (!sel) { ui.quizFeedback.textContent = 'Selecciona opción.'; ui.quizFeedback.style.color = 'red'; return; } document.querySelectorAll('input[name="quizOption"]').forEach(i => i.disabled = true); ui.quizSubmitButton.disabled = true; const uAns = parseInt(sel.value, 10); const cAns = quizQuestions[state.currentQuizQuestionIndex].correctAnswer; if (uAns === cAns) { ui.quizFeedback.textContent = '¡Correcto!'; ui.quizFeedback.style.color = 'green'; setTimeout(() => { state.currentQuizQuestionIndex++; displayQuizQuestion(); }, 1500); } else { ui.quizFeedback.innerHTML = `Incorrecto. Correcta: <br><i>${quizQuestions[state.currentQuizQuestionIndex].options[cAns]}</i>`; ui.quizFeedback.style.color = 'red'; setTimeout(() => { state.currentQuizQuestionIndex++; displayQuizQuestion(); }, 3000); } }
+
+        // --- Simulation Step Functions ---
+        function runStage(stageNumber) {
+            console.log(`Run Stage ${stageNumber}`); if (!ui || !state || !state.flags) { console.error("State/UI not ready"); return; }
+            try { clearTimeout(state.timers.heating); clearTimeout(state.timers.purging); clearTimeout(state.timers.vaporization);
+                // --- Stop Purge Logic (if starting another stage while purging) ---
+                 if (stageNumber !== 2 && state.flags.isPurging) {
+                     console.log("Stopping purge due to new stage start...");
+                     clearTimeout(state.timers.purging); state.flags.isPurging = false; ui.vaporizationTube.classList.remove('purging'); const elap = Date.now() - state.timers.purgeStartTime; state.flags.purgeCompleteRatio = Math.min(1, elap / purgeDurationMs); state.flags.isPurged = (state.flags.purgeCompleteRatio >= 0.99); state.flags.purgeSkippedOrFailed = !state.flags.isPurged; ui.purgeOverlay.style.opacity = state.flags.purgeCompleteRatio;
+                     // Don't change stage here, let the new stage logic take over, but ensure purge state is correct
+                     updateButtonStates(); // Reflect that purge is no longer active
+                 }
+                // --- End Stop Purge Logic ---
+
+                switch(stageNumber) {
+                    case 1: // Heat
+                        state.currentStage = 1; updateFeedback('Encendiendo mechero...', 'info'); ui.flame.classList.add('on'); ui.heatingJacket.classList.add('heating'); ui.initialResidue.style.opacity = '0'; ui.purgeOverlay.style.opacity = '0'; let iCol = '#f8d7da'; if (state.substanceKey === 'ethanol') iCol = '#d1e7dd'; else if (state.substanceKey === 'diethyl_ether') iCol = '#fff3cd'; ui.sampleColorFill.style.backgroundColor = iCol; ui.sampleColorFill.style.opacity = '0.7'; state.timers.heating = setTimeout(() => { if (state.currentStage !== 1) return; state.flags.isHeated = true; updateFeedback('Sistema en régimen. Listo para purgar/pesar.', 'success'); updateButtonStates(); }, 4000);
+                        break;
+                    case 2: // Purge (Start/Stop) - Handles its own stop internally now
+                        if (state.flags.isPurging) { // User clicked "Detener Purga"
+                             console.log("User clicked Stop Purge");
+                             clearTimeout(state.timers.purging); state.flags.isPurging = false; ui.vaporizationTube.classList.remove('purging'); const elap = Date.now() - state.timers.purgeStartTime; state.flags.purgeCompleteRatio = Math.min(1, elap / purgeDurationMs); state.flags.isPurged = (state.flags.purgeCompleteRatio >= 0.99); state.flags.purgeSkippedOrFailed = !state.flags.isPurged; ui.purgeOverlay.style.opacity = state.flags.purgeCompleteRatio; updateFeedback(`Purga detenida (${(state.flags.purgeCompleteRatio * 100).toFixed(0)}%). ${state.flags.purgeSkippedOrFailed ? '<strong>Afecta resultados.</strong>' : ''}`, state.flags.purgeSkippedOrFailed ? 'warning' : 'info'); state.currentStage = 1; updateButtonStates(); return;
+                         } else { // User clicked "Purgar Sistema"
+                             console.log("User clicked Start Purge");
+                             state.currentStage = 2; state.flags.isPurging = true; state.flags.isPurged = false; state.flags.purgeCompleteRatio = 0; state.flags.purgeSkippedOrFailed = state.flags.teacherMode && ui.forcePurgeErrorCheck.checked; state.timers.purgeStartTime = Date.now(); ui.vaporizationTube.style.setProperty('--purge-duration', `${purgeDurationMs / 1000}s`); updateFeedback('Purgando sistema...', 'info'); ui.sampleColorFill.style.opacity = '0'; ui.purgeOverlay.style.opacity = '0'; ui.vaporizationTube.classList.add('purging'); state.timers.purging = setTimeout(() => { if (state.currentStage !== 2 || !state.flags.isPurging) return; state.flags.isPurging = false; state.flags.isPurged = !state.flags.purgeSkippedOrFailed; state.flags.purgeCompleteRatio = state.flags.isPurged ? 1 : 0; state.flags.purgeSkippedOrFailed = !state.flags.isPurged; ui.vaporizationTube.classList.remove('purging'); ui.purgeOverlay.style.opacity = state.flags.purgeCompleteRatio; state.currentStage = 1; updateFeedback(state.flags.purgeSkippedOrFailed ? 'Purga fallida (sim). Listo para pesar.' : 'Sistema purgado. Listo para pesar.', state.flags.purgeSkippedOrFailed ? 'warning' : 'success'); updateButtonStates(); }, purgeDurationMs);
+                         }
+                        break;
+                    case 3: // Weigh
+                        state.currentStage = 3; if (!state.flags.isPurged && state.flags.purgeCompleteRatio < 1) { state.flags.purgeSkippedOrFailed = true; updateFeedback('Purga incompleta/omitida. Proceda a pesar...', 'warning'); ui.purgeOverlay.style.opacity = state.flags.purgeCompleteRatio; } else if (state.flags.isPurged) { updateFeedback('Listo para pesar muestra.', 'info'); ui.purgeOverlay.style.opacity = 1; } else { ui.purgeOverlay.style.opacity = 0; updateFeedback('Purga omitida. Proceda a pesar...', 'warning'); } ui.weighingStation.classList.remove('hidden'); ui.sampleMassInput.focus();
+                        break;
+                    case 4: // Insert
+                        state.currentStage = 4; state.flags.lossErrorOccurred = state.flags.teacherMode && ui.forceLossErrorCheck.checked; let msg4 = 'Insertando... Vaporizando...'; if (state.flags.lossErrorOccurred) msg4 += ' Error: Pérdida muestra.'; if (state.flags.purgeSkippedOrFailed) { msg4 += ` (Purga: ${(state.flags.purgeCompleteRatio * 100).toFixed(0)}%).`; } updateFeedback(msg4, state.flags.lossErrorOccurred || state.flags.purgeSkippedOrFailed ? 'warning' : 'info'); ui.ampoule.classList.add('falling');
+                        state.timers.vaporization = setTimeout(() => {
+                             if (state.currentStage !== 4) return; ui.vaporEffect.style.height = '60%'; ui.vaporEffect.style.opacity = '1'; ui.purgeOverlay.style.opacity = '0';
+                             try { const sub = substances[state.substanceKey]; const thMW = sub.mw; const errMrg = state.flags.teacherMode ? parseFloat(ui.errorMarginInput.value) : 5; const mFactor = state.flags.lossErrorOccurred ? (0.8 + Math.random() * 0.15) : 1.0; const effMass = (state.sampleMassG || 0) * mFactor; if (!thMW || thMW <= 0 || effMass <= 0) { throw new Error("Masa/PM inválido para V ideal."); } const TK = state.ambientTempC + 273.15; const Patm = state.atmPressureMmHg / 760.0; const Papprox = Patm; let VidealL = (effMass / thMW) * R * TK / Papprox; const minPurgeVF = 0.7; const purgeVF = minPurgeVF + (1 - minPurgeVF) * state.flags.purgeCompleteRatio; VidealL *= purgeVF; const VsimL = getRandomValue(VidealL, errMrg); let potVolMl = VsimL * 1000; let volCapMsg = ""; if (potVolMl > maxCollectorVolumeMl) { state.collectedVolumeMl = maxCollectorVolumeMl; volCapMsg = ` (V=${potVolMl.toFixed(1)} > ${maxCollectorVolumeMl}mL)`; } else { state.collectedVolumeMl = Math.max(0, potVolMl); } let hCalc = collectorHeightCm * (1 - (state.collectedVolumeMl / maxCollectorVolumeMl)); state.waterColumnCm = Math.max(0, hCalc); const gasHPerc = Math.min(100, (state.collectedVolumeMl / maxCollectorVolumeMl) * 100); ui.gasSpace.style.height = `${gasHPerc}%`; const blu = [204, 229, 255]; const gry = [210, 220, 230]; const rat = gasHPerc / 100; const r = Math.round(blu[0] + (gry[0] - blu[0]) * rat); const g = Math.round(blu[1] + (gry[1] - blu[1]) * rat); const bb = Math.round(blu[2] + (gry[2] - blu[2]) * rat); ui.waterInCollector.style.backgroundColor = `rgb(${r}, ${g}, ${bb})`; const maxCHV = 50; const vSFH = 2.5; const cHpx = Math.min(maxCHV, state.waterColumnCm * vSFH); ui.waterColumnLine.style.height = `${cHpx}px`; ui.hValueSpan.textContent = state.waterColumnCm.toFixed(1); state.flags.isInserted = true; let fFBType = 'success'; if(volCapMsg) fFBType = 'warning'; else if (state.flags.lossErrorOccurred || state.flags.purgeSkippedOrFailed) fFBType = 'warning'; updateFeedback('Vaporización completa. Listo para revisar.' + volCapMsg, fFBType);
+                             } catch (e) { console.error("Error stage 4 calc:", e); updateFeedback(`Error calculando V: ${e.message}`, 'error'); if(ui.btnReview) ui.btnReview.disabled = true; }
+                             updateButtonStates();
+                         }, 1500);
+                        break;
+                    case 5: // Review
+                        state.currentStage = 5; state.flags.isReviewed = true; updateFeedback('Revisa medidas. Modifica masa/Pv y opciones si es necesario.', 'info'); displayReviewData();
+                        break;
+                    case 6: // Calculate
+                        state.currentStage = 6;
+                        // Validate and get values from review inputs
+                        const massInVal = parseFloat(ui.massForCalcInput.value); ui.massOverrideError.textContent = '';
+                        const pvInputVal = parseFloat(ui.pvForCalcInput.value); ui.pvOverrideError.textContent = '';
+                        state.flags.ignoreWaterColumn = ui.ignoreHCheckbox.checked; state.flags.ignorePvInCalc = ui.ignorePvCheckbox.checked;
+                        let pvToUse = state.calculated.Pv_atm_calc; // Start with calculated
+
+                        if (isNaN(massInVal) || massInVal <= 0) { ui.massOverrideError.textContent = 'Inválido'; state.currentStage = 5; updateButtonStates(); return; }
+                        state.massForCalc = massInVal; // Valid mass
+
+                        if (!state.flags.ignorePvInCalc) { // Only validate Pv override if not ignoring
+                            if (isNaN(pvInputVal) || pvInputVal < 0) { ui.pvOverrideError.textContent = 'Inválido'; state.currentStage = 5; updateButtonStates(); return; }
+                             pvToUse = pvInputVal; // Use the valid override
+                         } else {
+                             pvToUse = 0; // Explicitly set to 0 if ignoring
+                         }
+
+                        updateFeedback('Calculando...', 'info');
+                        try { if (state.massForCalc === null || state.collectedVolumeMl === null || state.waterColumnCm === null) { throw new Error("Faltan datos."); } const m = state.massForCalc; const VL = state.collectedVolumeMl / 1000.0; const TK = state.ambientTempC + 273.15; const Patm = state.atmPressureMmHg / 760.0; const hcm = state.waterColumnCm;
+                            const Pv = pvToUse; // Use the value determined above (override, calculated, or 0)
+                            const Ph = state.flags.ignoreWaterColumn ? 0 : (hcm / 1033.6);
+                            const Pcorr = Patm - Pv - Ph; // Calculate corrected pressure
+                            if (m <= 0 || VL <= 0 || TK <= 0 || Pcorr <= 0) { throw new Error(`Datos inválidos (P=${Pcorr.toFixed(3)}).`); }
+                            const Mexp = (m * R * TK) / (Pcorr * VL);
+                            // Store results, including the Pv actually used
+                            state.calculated = { ...state.calculated, T_K:TK, Patm_atm:Patm, Pv_atm:Pv, Ph_atm:Ph, P_corrected_atm:Pcorr, M_exp:Mexp };
+                            const sub = substances[state.substanceKey]; state.calculated.molecularFormula = sub.formula; state.calculated.theoreticalMW = sub.mw; state.calculated.absoluteError = Math.abs(Mexp - sub.mw); state.calculated.relativeErrorPercent = (sub.mw && sub.mw !== 0) ? (state.calculated.absoluteError / sub.mw) * 100 : null;
+                            state.flags.isCalculated = true; updateFeedback('Cálculos completados.', 'success'); displayFinalResults();
+                        } catch (error) { updateFeedback(`Error: ${error.message}`, 'error'); state.currentStage = 5; } // Go back to review on error
+                        break;
+                } // End Switch
+                 updateButtonStates();
+            } catch (e) { console.error(`Error in runStage(${stageNumber}):`, e); updateFeedback(`Error interno ${stageNumber}. Revisa consola.`, 'error'); }
+        }
+
+        // --- Initialization ---
+        function initialize() {
+             console.log("Initializing..."); ui = { /* ... All getElementById calls ... */ substanceSelect: getEl('substance'), ambientTempInput: getEl('ambientTemp'), atmPressureInput: getEl('atmPressure'), btnStartHeat: getEl('btn-start-heat'), btnPurge: getEl('btn-purge'), btnWeigh: getEl('btn-weigh'), btnInsert: getEl('btn-insert'), btnReview: getEl('btn-review'), btnCalculate: getEl('btn-calculate'), btnReset: getEl('btn-reset'), feedback: getEl('feedback'), weighingStation: getEl('weighing-station'), sampleMassInput: getEl('sampleMass'), btnConfirmWeighing: getEl('btn-confirm-weighing'), weighingErrorMsg: getEl('weighing-error-msg'), resultsPanel: getEl('results-panel'), resultsTitle: getEl('results-title'), resultsDisplay: getEl('results-display'), pvCalculatedDisplay: getEl('pv-calculated'), reviewInputs: getEl('review-inputs'), massForCalcInput: getEl('mass-for-calc'), massOverrideError: getEl('mass-override-error'), pvForCalcInput: getEl('pv-for-calc'), pvOverrideError: getEl('pv-override-error'), ignoreHCheckbox: getEl('ignore-h'), ignorePvCheckbox: getEl('ignore-pv'), finalCalcResults: getEl('final-calc-results'), massUsedLine: getEl('mass-used-line'), massUsedValue: getEl('mass-used-value'), flame: getEl('flame'), heatingJacket: getEl('heating-jacket'), vaporizationTube: getEl('vaporization-tube'), sampleColorFill: getEl('sample-color-fill'), purgeOverlay: getEl('purge-overlay'), initialResidue: getEl('initial-residue'), vaporEffect: getEl('vapor-effect'), ampoule: getEl('ampoule'), gasSpace: getEl('gas-space'), waterInCollector: getEl('water-in-collector'), waterColumnLine: getEl('water-column-line'), hValueSpan: getEl('h-value'), resM: getEl('res-m'), resV: getEl('res-v'), resTDisplay: getEl('res-t-display'), resPatmDisplay: getEl('res-patm-display'), resH: getEl('res-h'), resT: getEl('res-t'), resPatm: getEl('res-patm'), resPv: getEl('res-pv'), resPh: getEl('res-ph'), resP: getEl('res-p'), resMw: getEl('res-mw'), resEf: getEl('res-ef'), resMf: getEl('res-mf'), resMwTeor: getEl('res-mw-teor'), resErrRel: getEl('res-err-rel'), teacherControls: getEl('teacher-controls'), btnToggleTeacher: getEl('btn-toggle-teacher'), forcePurgeErrorCheck: getEl('forcePurgeError'), forceLossErrorCheck: getEl('forceLossError'), errorMarginInput: getEl('errorMargin'), quizModule: getEl('quiz-module'), quizQuestionContainer: getEl('quiz-question-container'), quizSubmitButton: getEl('quiz-submit'), quizFeedback: getEl('quiz-feedback') };
+             if (!ui.btnStartHeat || !ui.feedback) { console.error("Essential UI not found!"); alert("Error inicializando."); return; }
+             resetSimulation(); console.log("Adding event listeners...");
+             ui.btnStartHeat.addEventListener('click', () => runStage(1)); ui.btnPurge.addEventListener('click', () => runStage(2)); ui.btnWeigh.addEventListener('click', () => runStage(3)); ui.btnInsert.addEventListener('click', () => runStage(4)); ui.btnReview.addEventListener('click', () => runStage(5)); ui.btnCalculate.addEventListener('click', () => runStage(6)); ui.btnReset.addEventListener('click', resetSimulation); ui.quizSubmitButton.addEventListener('click', checkQuizAnswer);
+             ui.btnConfirmWeighing.addEventListener('click', () => { const mass = parseFloat(ui.sampleMassInput.value); ui.weighingErrorMsg.textContent = ''; if (isNaN(mass) || mass <= 0 || mass > 1.0) { ui.weighingErrorMsg.textContent = 'Masa inválida.'; ui.sampleMassInput.classList.add('input-error'); return; } ui.sampleMassInput.classList.remove('input-error'); state.sampleMassG = mass; state.massForCalc = mass; state.flags.isWeighed = true; ui.weighingStation.classList.add('hidden'); updateFeedback(`Masa confirmada: ${mass.toFixed(3)} g.`, 'success'); updateButtonStates(); });
+             ui.substanceSelect.addEventListener('change', (e) => { if (state.currentStage === 0) state.substanceKey = e.target.value; }); ui.ambientTempInput.addEventListener('change', (e) => { if (state.currentStage === 0) state.ambientTempC = parseFloat(e.target.value) || 25; }); ui.atmPressureInput.addEventListener('change', (e) => { if (state.currentStage === 0) state.atmPressureMmHg = parseFloat(e.target.value) || 760; }); ui.massForCalcInput.addEventListener('input', (e) => { const val = parseFloat(e.target.value); ui.massOverrideError.textContent = (isNaN(val) || val <= 0) ? 'Inválido' : ''; });
+             ui.pvForCalcInput.addEventListener('input', (e) => { const val = parseFloat(e.target.value); ui.pvOverrideError.textContent = (isNaN(val) || val < 0) ? 'Inválido' : ''; }); // Allow 0
+             ui.ignoreHCheckbox.addEventListener('change', (e) => { state.flags.ignoreWaterColumn = e.target.checked; }); // Update state directly for simplicity
+             ui.ignorePvCheckbox.addEventListener('change', (e) => { state.flags.ignorePvInCalc = e.target.checked; ui.pvForCalcInput.disabled = e.target.checked; if(e.target.checked) { ui.pvOverrideError.textContent = ''; } }); // Update state & disable input
+             ui.btnToggleTeacher.addEventListener('click', () => { if (state.currentStage > 0) { updateFeedback("Reinicia para cambiar modo.", "warning"); return; } state.flags.teacherMode = !state.flags.teacherMode; ui.teacherControls.classList.toggle('hidden'); ui.btnToggleTeacher.textContent = state.flags.teacherMode ? 'Modo Estudiante' : 'Modo Docente'; updateFeedback(`Modo ${state.flags.teacherMode ? 'Docente' : 'Estudiante'} activado.`, 'info'); });
+             if(ui.ambientTempInput) ui.ambientTempInput.value = state.ambientTempC; if(ui.atmPressureInput) ui.atmPressureInput.value = state.atmPressureMmHg; if(ui.substanceSelect) ui.substanceSelect.value = state.substanceKey;
+             console.log("Sim Initialized OK."); updateFeedback('Simulación lista.', 'info');
+         } // End initialize
+
+        // --- Run ---
+        initialize();
+
+    }); // End DOMContentLoaded listener
+</script>
+
+</body>
+</html>
